@@ -1,0 +1,119 @@
+{
+  "format": "day-companion/v2",
+  "mode": "setup",
+  "base_revision": "85d1949e7aba7710341fb9b1",
+  "profile": {
+    "timezone": "Europe/Moscow",
+    "travel": 100,
+    "preparation": 40,
+    "buffer": 10,
+    "campus_walk": 5,
+    "home_place": "home",
+    "destination_place": "uni",
+    "outdoor_before": 10,
+    "outdoor_after": 15,
+    "return_delay": 30,
+    "semester_start": "2026-08-31",
+    "semester_end": "2026-12-31",
+    "sleep": {
+      "enabled": true,
+      "hours": 8,
+      "latency_minutes": 15,
+      "reminder_minutes": 30
+    },
+    "notifications": false
+  },
+  "places": {
+    "upsert": [
+      {
+        "id": "home",
+        "label": "Дом, район города N",
+        "city": "Город N",
+        "district": "Домашний район",
+        "latitude": null,
+        "longitude": null
+      },
+      {
+        "id": "uni",
+        "label": "Учёба, район города C",
+        "city": "Город C",
+        "district": "Район учёбы",
+        "latitude": null,
+        "longitude": null
+      }
+    ]
+  },
+  "garments": {
+    "upsert": [
+      {
+        "name": "Пальто",
+        "minimum": -5,
+        "maximum": 10
+      },
+      {
+        "name": "Куртка",
+        "minimum": 0,
+        "maximum": 18,
+        "waterproof": true,
+        "windproof": true
+      },
+      {
+        "name": "Кофта",
+        "minimum": 19,
+        "maximum": 28
+      }
+    ]
+  },
+  "rules": {
+    "upsert": [
+      {
+        "name": "Дождь и прохладно",
+        "garment": "Куртка",
+        "maximum": 14.9,
+        "rain": "yes",
+        "priority": 100
+      },
+      {
+        "name": "Прохладно, сухо",
+        "garment": "Пальто",
+        "maximum": 10,
+        "rain": "no",
+        "priority": 50
+      },
+      {
+        "name": "Тепло",
+        "garment": "Кофта",
+        "minimum": 19,
+        "priority": 40
+      }
+    ]
+  },
+  "reminders": {
+    "upsert": [
+      {
+        "id": "bag",
+        "text": "Разобрать сумку",
+        "trigger": "home",
+        "offset_minutes": 20
+      }
+    ]
+  },
+  "schedule": {
+    "mode": "upsert",
+    "lessons": [
+      {
+        "id": "math-odd-mon",
+        "title": "Математика",
+        "weekday": 0,
+        "start": "09:00",
+        "end": "10:30",
+        "parity": "odd",
+        "room": "Б-312",
+        "campus": "В-78",
+        "place_id": "uni",
+        "note": "Взять тетрадь",
+        "allowed_lateness": 5
+      }
+    ]
+  }
+}

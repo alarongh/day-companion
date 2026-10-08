@@ -1,0 +1,1114 @@
+{
+  "$defs": {
+    "DayChange": {
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "format": "date",
+          "title": "Day",
+          "type": "string"
+        },
+        "lesson_id": {
+          "title": "Lesson Id",
+          "type": "string"
+        },
+        "change": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Change"
+        }
+      },
+      "required": [
+        "day",
+        "lesson_id"
+      ],
+      "title": "DayChange",
+      "type": "object"
+    },
+    "Lesson": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "default": "",
+          "maxLength": 32,
+          "pattern": "^[A-Za-z0-9_-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
+        },
+        "weekday": {
+          "anyOf": [
+            {
+              "maximum": 6,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weekday"
+        },
+        "weeks": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Weeks",
+          "type": "array"
+        },
+        "parity": {
+          "default": "all",
+          "enum": [
+            "all",
+            "odd",
+            "even"
+          ],
+          "title": "Parity",
+          "type": "string"
+        },
+        "room": {
+          "default": "",
+          "maxLength": 100,
+          "title": "Room",
+          "type": "string"
+        },
+        "campus": {
+          "default": "",
+          "maxLength": 100,
+          "title": "Campus",
+          "type": "string"
+        },
+        "subgroup": {
+          "default": "",
+          "maxLength": 50,
+          "title": "Subgroup",
+          "type": "string"
+        },
+        "valid_from": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid From"
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Until"
+        },
+        "place_id": {
+          "default": "",
+          "title": "Place Id",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Note",
+          "type": "string"
+        },
+        "allowed_lateness": {
+          "default": 0,
+          "maximum": 180,
+          "minimum": 0,
+          "title": "Allowed Lateness",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "title",
+        "start",
+        "end"
+      ],
+      "title": "Lesson",
+      "type": "object"
+    },
+    "Operations": {
+      "additionalProperties": false,
+      "properties": {
+        "upsert": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "maxItems": 1000,
+          "title": "Upsert",
+          "type": "array"
+        },
+        "remove": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "title": "Remove",
+          "type": "array"
+        }
+      },
+      "title": "Operations",
+      "type": "object"
+    },
+    "ScheduleChange": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "upsert",
+          "enum": [
+            "upsert",
+            "replace"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "lessons": {
+          "items": {
+            "$ref": "#/$defs/Lesson"
+          },
+          "maxItems": 2000,
+          "title": "Lessons",
+          "type": "array"
+        },
+        "remove": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2000,
+          "title": "Remove",
+          "type": "array"
+        }
+      },
+      "title": "ScheduleChange",
+      "type": "object"
+    },
+    "Settings": {
+      "additionalProperties": false,
+      "properties": {
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Timezone"
+        },
+        "return_delay": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Return Delay"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Longitude"
+        },
+        "lesson_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Lesson Lead"
+        },
+        "destination_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Destination Place"
+        },
+        "briefing_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Briefing Lead"
+        },
+        "quiet_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Quiet Start"
+        },
+        "outdoor_after": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Outdoor After"
+        },
+        "rain_threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Rain Threshold"
+        },
+        "default_transfer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Default Transfer"
+        },
+        "home_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Home Place"
+        },
+        "lesson_notes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Lesson Notes"
+        },
+        "fixed_briefing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Fixed Briefing"
+        },
+        "campus_routes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Routes"
+        },
+        "transfers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Transfers"
+        },
+        "departure_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Departure Lead"
+        },
+        "temperature_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "actual",
+                "feels"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Temperature Mode"
+        },
+        "comfort_offset": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Comfort Offset"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Buffer"
+        },
+        "short_break": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Short Break"
+        },
+        "outdoor_before": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Outdoor Before"
+        },
+        "quiet_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Quiet End"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "City"
+        },
+        "travel": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Travel"
+        },
+        "campus_places": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Places"
+        },
+        "hourly_temperature": {
+          "anyOf": [
+            {
+              "enum": [
+                "weighted_mean",
+                "coldest"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Hourly Temperature"
+        },
+        "semester_end": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Semester End"
+        },
+        "campus_walk": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Walk"
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Preparation"
+        },
+        "notifications": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Notifications"
+        },
+        "subgroup": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Subgroup"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Latitude"
+        },
+        "semester_start": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Semester Start"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Scenario"
+        },
+        "sleep": {
+          "additionalProperties": true,
+          "title": "Sleep",
+          "type": "object"
+        }
+      },
+      "title": "Settings",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "day-companion/v2",
+      "title": "Format",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "setup",
+        "patch"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "base_revision": {
+      "title": "Base Revision",
+      "type": "string"
+    },
+    "profile": {
+      "$ref": "#/$defs/Settings"
+    },
+    "places": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upsert": {
+          "type": "array",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_-]{1,32}$",
+                "title": "Id",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Label",
+                "type": "string"
+              },
+              "city": {
+                "default": "",
+                "maxLength": 100,
+                "title": "City",
+                "type": "string"
+              },
+              "district": {
+                "default": "",
+                "maxLength": 100,
+                "title": "District",
+                "type": "string"
+              },
+              "latitude": {
+                "anyOf": [
+                  {
+                    "maximum": 90,
+                    "minimum": -90,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Latitude"
+              },
+              "longitude": {
+                "anyOf": [
+                  {
+                    "maximum": 180,
+                    "minimum": -180,
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Longitude"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "title": "Place",
+            "type": "object"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "garments": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upsert": {
+          "type": "array",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "minimum": {
+                "maximum": 60,
+                "minimum": -60,
+                "title": "Minimum",
+                "type": "number"
+              },
+              "maximum": {
+                "maximum": 60,
+                "minimum": -60,
+                "title": "Maximum",
+                "type": "number"
+              },
+              "waterproof": {
+                "default": false,
+                "title": "Waterproof",
+                "type": "boolean"
+              },
+              "windproof": {
+                "default": false,
+                "title": "Windproof",
+                "type": "boolean"
+              },
+              "enabled": {
+                "default": true,
+                "title": "Enabled",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "minimum",
+              "maximum"
+            ],
+            "title": "Garment",
+            "type": "object"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upsert": {
+          "type": "array",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "garment": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Garment",
+                "type": "string"
+              },
+              "minimum": {
+                "default": -60,
+                "maximum": 60,
+                "minimum": -60,
+                "title": "Minimum",
+                "type": "number"
+              },
+              "maximum": {
+                "default": 60,
+                "maximum": 60,
+                "minimum": -60,
+                "title": "Maximum",
+                "type": "number"
+              },
+              "rain": {
+                "default": "any",
+                "enum": [
+                  "any",
+                  "yes",
+                  "no"
+                ],
+                "title": "Rain",
+                "type": "string"
+              },
+              "wind_min": {
+                "default": 0,
+                "maximum": 200,
+                "minimum": 0,
+                "title": "Wind Min",
+                "type": "number"
+              },
+              "scenario": {
+                "default": "*",
+                "maxLength": 60,
+                "title": "Scenario",
+                "type": "string"
+              },
+              "priority": {
+                "default": 0,
+                "maximum": 1000,
+                "minimum": 0,
+                "title": "Priority",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "garment"
+            ],
+            "title": "Rule",
+            "type": "object"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reminders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "upsert": {
+          "type": "array",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[A-Za-z0-9_-]{1,32}$",
+                "title": "Id",
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 1000,
+                "minLength": 1,
+                "title": "Text",
+                "type": "string"
+              },
+              "trigger": {
+                "enum": [
+                  "time",
+                  "wake",
+                  "departure",
+                  "arrival",
+                  "last_lesson",
+                  "home",
+                  "bedtime",
+                  "condition",
+                  "lesson_start"
+                ],
+                "title": "Trigger",
+                "type": "string"
+              },
+              "time": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Time"
+              },
+              "condition": {
+                "default": "",
+                "maxLength": 80,
+                "title": "Condition",
+                "type": "string"
+              },
+              "subject": {
+                "default": "",
+                "maxLength": 200,
+                "title": "Subject",
+                "type": "string"
+              },
+              "offset_minutes": {
+                "default": 0,
+                "maximum": 1440,
+                "minimum": -1440,
+                "title": "Offset Minutes",
+                "type": "integer"
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Date"
+              },
+              "weekdays": {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 7,
+                "title": "Weekdays",
+                "type": "array"
+              },
+              "parity": {
+                "default": "all",
+                "enum": [
+                  "all",
+                  "odd",
+                  "even"
+                ],
+                "title": "Parity",
+                "type": "string"
+              },
+              "weeks": {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 60,
+                "title": "Weeks",
+                "type": "array"
+              },
+              "expires_minutes": {
+                "default": 180,
+                "maximum": 1440,
+                "minimum": 1,
+                "title": "Expires Minutes",
+                "type": "integer"
+              },
+              "enabled": {
+                "default": true,
+                "title": "Enabled",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "text",
+              "trigger"
+            ],
+            "title": "Reminder",
+            "type": "object"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "schedule": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScheduleChange"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "personal": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScheduleChange"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "overrides": {
+      "items": {
+        "$ref": "#/$defs/DayChange"
+      },
+      "maxItems": 1000,
+      "title": "Overrides",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format",
+    "mode",
+    "base_revision"
+  ],
+  "title": "Configuration",
+  "type": "object"
+}

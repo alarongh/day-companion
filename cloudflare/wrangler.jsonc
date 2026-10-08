@@ -1,0 +1,10 @@
+{
+  "name": "day-companion-bot",
+  "main": "src/entry.py",
+  "compatibility_date": "2026-10-08",
+  "compatibility_flags": ["python_workers"],
+  "workers_dev": true,
+  "durable_objects": {"bindings": [{"name": "COMPANION", "class_name": "Companion"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["Companion"]}],
+  "observability": {"enabled": false}
+}

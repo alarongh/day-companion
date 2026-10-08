@@ -1,0 +1,16 @@
+[project]
+name = "day-companion-cloud"
+version = "0.2.0"
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic==2.12.5",
+  "httpx==0.28.1",
+  "openpyxl==3.1.5",
+  "icalendar==7.3.0",
+  "recurring-ical-events==3.8.2",
+  "python-dotenv==1.2.4",
+  "tzdata==2026.5",
+]
+
+[dependency-groups]
+dev = ["workers-py==1.17.7", "workers-runtime-sdk"]

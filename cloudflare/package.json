@@ -1,0 +1,5 @@
+{
+  "name": "day-companion-cloud",
+  "private": true,
+  "devDependencies": {"wrangler": "4.147.0"}
+}

@@ -1,0 +1,42 @@
+# Credentials and local overrides
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+credentials*.json
+
+# User data, backups and operator output
+data/
+backups/
+work/
+*.sqlite*
+*.db
+*.db-*
+*.log
+*.pid
+*.zip
+*.bak
+*.dump
+*-report.json
+
+# Runtimes and generated bundles
+.venv/
+.venv-workers/
+venv/
+node_modules/
+python_modules/
+.wrangler/
+build/
+dist/
+cloudflare/src/companion/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
