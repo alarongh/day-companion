@@ -182,6 +182,13 @@ class Store:
                 )
             }
 
+    def delivery_ready(self, uid, key, now):
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT status,next_at FROM deliveries WHERE uid=? AND key=?", (uid, key)
+            ).fetchone()
+        return row is None or (row[0] != "sent" and row[1] <= now)
+
     def claim(self, uid, key, now=None):
         now = time.time() if now is None else now
         with self.connect() as db:

@@ -1,7 +1,7 @@
 {
   "format": "day-companion/v2",
   "mode": "setup",
-  "base_revision": "85d1949e7aba7710341fb9b1",
+  "base_revision": "f932d73d9d573780925f3c29",
   "profile": {
     "timezone": "Europe/Moscow",
     "travel": 100,

@@ -1,7 +1,7 @@
 {
   "format": "day-companion/v2",
   "mode": "patch",
-  "base_revision": "eeb6c9562a83d5c09e675b43",
+  "base_revision": "f932d73d9d573780925f3c29",
   "profile": {
     "sleep": {
       "hours": 8.5

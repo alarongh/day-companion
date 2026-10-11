@@ -10,6 +10,7 @@ from contextvars import ContextVar
 import httpx
 from workers import Request, fetch
 
+from companion.delivery import NOTICE_CONTEXT
 from companion.telegram import BufferedInputFile, Message, encode
 
 IMMEDIATE_REPLIES = ContextVar("immediate_replies", default=False)
@@ -78,10 +79,14 @@ async def _telegram(token, method, payload, files=None):
 
 
 class TelegramSession:
+    deferred_notices = True
+
     def __init__(self, store, token=None):
         self.store = store
         self.token = token
         self.delivery_locks = defaultdict(asyncio.Lock)
+        self.notice_handler = None
+        self.active_outbox = set()
 
     async def flush(self, uid=None):
         if uid is None:
@@ -94,8 +99,21 @@ class TelegramSession:
             ]
             await asyncio.gather(*(self.flush(user) for user in users))
             return
-        async with self.delivery_locks[uid]:
-            await flush_outbox(self.store, self.token, uid=uid)
+        # Interactive handlers already hold the user's configuration lock.
+        # Do not wait on a scheduler flush which may be waiting for that lock.
+        if IMMEDIATE_REPLIES.get():
+            await flush_outbox(
+                self.store, self.token, uid=uid, interactive_only=True, active=self.active_outbox
+            )
+        else:
+            async with self.delivery_locks[uid]:
+                await flush_outbox(
+                    self.store,
+                    self.token,
+                    uid=uid,
+                    notice_handler=self.notice_handler,
+                    active=self.active_outbox,
+                )
 
     async def enqueue(self, method, values):
         data, files = {}, {}
@@ -107,6 +125,8 @@ class TelegramSession:
                 files[key] = {"name": value.filename, "data": base64.b64encode(value.data).decode()}
             else:
                 data[key] = encode(value)
+        if NOTICE_CONTEXT.get():
+            data["_notice"] = NOTICE_CONTEXT.get()
         self.store.db.execute(
             "INSERT INTO cloud_outbox(uid,method,payload,files,next_at,created) VALUES (?,?,?,?,?,?)",
             (int(data["chat_id"]), method, json.dumps(data), json.dumps(files), time.time(), time.time()),
@@ -118,8 +138,10 @@ class TelegramSession:
         )
 
 
-async def flush_outbox(store, token, uid=None):
+async def flush_outbox(store, token, uid=None, notice_handler=None, interactive_only=False, active=None):
     condition = " AND uid=?" if uid is not None else ""
+    if interactive_only:
+        condition += " AND json_extract(payload, '$._notice') IS NULL"
     args = (time.time(), uid) if uid is not None else (time.time(),)
     rows = store.db.execute(
         "SELECT id,uid,method,payload,files,attempts FROM cloud_outbox WHERE next_at<=? AND failed=0"
@@ -127,13 +149,25 @@ async def flush_outbox(store, token, uid=None):
         + " ORDER BY id LIMIT 20",
         args,
     ).fetchall()
-    for ident, uid, method, payload, files, attempts in rows:
+
+    async def deliver(row):
+        ident, uid, method, payload, files, attempts = row
         try:
-            _, raw = await telegram(token, method, json.loads(payload), json.loads(files))
+            data = json.loads(payload)
+            metadata = data.pop("_notice", None)
+            if metadata:
+                if notice_handler is None:
+                    raise RuntimeError("Scheduled delivery validator is not initialized")
+                text = await notice_handler(uid, metadata)
+                if text is None:
+                    store.db.execute("DELETE FROM cloud_outbox WHERE id=?", (ident,))
+                    return
+                data["text"] = text
+            _, raw = await telegram(token, method, data, json.loads(files))
             result = json.loads(raw)
             if result.get("ok"):
                 store.db.execute("DELETE FROM cloud_outbox WHERE id=?", (ident,))
-                continue
+                return
             retry = result.get("parameters", {}).get("retry_after")
             permanent = result.get("error_code") in (400, 401, 403) and retry is None
             if result.get("error_code") == 403 and store.exists(uid):
@@ -153,3 +187,14 @@ async def flush_outbox(store, token, uid=None):
                 ident,
             ),
         )
+
+    active = active if active is not None else set()
+    for row in rows:
+        ident = row[0]
+        if ident in active:
+            continue
+        active.add(ident)
+        try:
+            await deliver(row)
+        finally:
+            active.discard(ident)

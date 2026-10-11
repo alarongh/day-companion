@@ -209,7 +209,7 @@ def extra_notices(items, p, day, events):
                 text=f"Пора готовиться ко сну.\nЛечь: {bed:%H:%M} ({bed:%d.%m}). Подъём: {wake:%H:%M} ({wake:%d.%m}).\nПо твоей настройке: {p.sleep.hours:g} ч. на сон и {p.sleep.latency_minutes} мин. на засыпание.\n{reason}",
             )
         )
-        if not items and day not in p.home_dates:
+        if p.routine_mode == "full" and not items and day not in p.home_dates:
             at = after_quiet(wake, p)
             if at < wake + timedelta(hours=1):
                 rows.append(
@@ -222,6 +222,8 @@ def extra_notices(items, p, day, events):
                         catch_up_seconds=3600,
                     )
                 )
+    if p.routine_mode == "sleep_only":
+        return rows
     for r in p.reminders:
         if not r.enabled or r.date and r.date != day or r.weekdays and day.weekday() not in r.weekdays:
             continue

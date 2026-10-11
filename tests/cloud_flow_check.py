@@ -254,17 +254,17 @@ async def main():
     service.providers.weather = weather
     counter = 100
 
-    async def onboarding(text=None, callback=None, location=None):
+    async def onboarding(text=None, callback=None, location=None, uid=8):
         nonlocal counter
         counter += 1
-        person = {"id": 8, "is_bot": False, "first_name": "New test user"}
-        msg = {"message_id": counter, "from": person, "chat": {"id": 8, "type": "private"}}
+        person = {"id": uid, "is_bot": False, "first_name": "New test user"}
+        msg = {"message_id": counter, "from": person, "chat": {"id": uid, "type": "private"}}
         if callback:
             msg["from"] = {"id": 999, "is_bot": True}
             event = {"callback_query": {"id": str(counter), "from": person, "message": msg, "data": callback}}
         else:
             event = {"message": {**msg, "text": text, **({"location": location} if location else {})}}
-        request = Request(counter, uid=8)
+        request = Request(counter, uid=uid)
         request.payload = {"update_id": counter, **event}
         response = await service.fetch(request)
         assert response.status == 200
@@ -302,6 +302,91 @@ async def main():
     assert all(payload.get("chat_id", 8) == 8 for _, payload, _ in deliveries)
     print(
         "Separate new cloud user: prompt file, weather without schedule, wardrobe recovery and existing-profile isolation verified"
+    )
+
+    # Sleep-only onboarding needs neither coordinates nor a MIREA connection.
+    await onboarding("/start", uid=9)
+    await onboarding(callback="mode:sleep_only", uid=9)
+    await onboarding(callback="notify:toggle", uid=9)
+    assert service.store.profile(9).notifications and not service.store.profile(9).city
+    await onboarding("/mirea", uid=9)
+    assert "статичное расписание" in deliveries[-1][1]["text"]
+    await onboarding(callback="upload", uid=9)
+    await onboarding("2026-10-12 | 09:00-18:00 | Работа", uid=9)
+    nonce = service.store.db.execute("SELECT nonce FROM drafts WHERE uid=9").fetchone()[0]
+    await onboarding(callback="commit:" + nonce, uid=9)
+    assert service.store.profile(9).sleep_schedule[0].title == "Работа"
+    assert not service.store.lessons(9)
+    await onboarding("Сегодня", uid=9)
+    assert "Сон ·" in deliveries[-1][1]["text"]
+    assert service.store.export(1) == preserved
+
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from companion.domain import Lesson
+    from companion.worker import Worker
+
+    now = datetime(2026, 10, 12, 11, tzinfo=ZoneInfo("Europe/Moscow"))
+    p = service.store.profile(9)
+    p.routine_mode = "full"
+    p.quiet_start = p.quiet_end = "00:00"
+    p.fixed_briefing = "11:00"
+    p.latitude, p.longitude = 55.7, 37.6
+    p.sleep.enabled = False
+    service.store.save_profile(9, p)
+    lesson = Lesson(id="queued", title="A", date=now.date(), start="12:00", end="13:00")
+    service.store.replace(9, [lesson])
+    worker = Worker(service.store, service.providers, service.bot, service.locks, lambda _: None)
+
+    async def validate(uid, metadata):
+        return await worker.prepare_delivery(uid, metadata, now)
+
+    service.bot.session.notice_handler = validate
+    service.providers.weather = AsyncMock(side_effect=weather)
+    await worker.tick_user(9, now)
+    service.providers.weather.assert_not_awaited()  # Fetch at actual delivery, not at enqueue.
+    cloud_io.telegram = AsyncMock(return_value=(500, '{"ok":false,"error_code":500}'))
+    await service.bot.session.flush(9)
+    assert service.providers.weather.await_count == 1
+    assert "_notice" not in cloud_io.telegram.call_args.args[2]
+    assert "Сводка готовится" not in cloud_io.telegram.call_args.args[2]["text"]
+    service.store.db.execute("UPDATE cloud_outbox SET next_at=0 WHERE uid=9")
+    await service.bot.session.flush(9)
+    assert service.providers.weather.await_count == 2
+    service.store.override(9, now.date(), lesson.id, {"cancelled": True})
+    service.store.db.execute("UPDATE cloud_outbox SET next_at=0 WHERE uid=9")
+    await service.bot.session.flush(9)
+    assert service.providers.weather.await_count == 2
+    assert cloud_io.telegram.await_count == 2  # Obsolete briefing is discarded.
+    assert service.store.db.execute("SELECT COUNT(*) FROM cloud_outbox WHERE uid=9").fetchone()[0] == 0
+
+    # A scheduler waiting for the profile lock must not block an interactive reply.
+    started = asyncio.Event()
+
+    async def wait_for_profile(uid, metadata):
+        started.set()
+        async with service.locks[uid]:
+            return "Scheduled message"
+
+    service.bot.session.notice_handler = wait_for_profile
+    context = cloud_io.NOTICE_CONTEXT.set({"key": "test", "day": now.date().isoformat()})
+    await service.bot.send_message(9, "Queued message")
+    cloud_io.NOTICE_CONTEXT.reset(context)
+    cloud_io.telegram = AsyncMock(return_value=(200, '{"ok":true,"result":true}'))
+    async with service.locks[9]:
+        background = asyncio.create_task(service.bot.session.flush(9))
+        await asyncio.wait_for(started.wait(), timeout=1)
+        immediate = cloud_io.IMMEDIATE_REPLIES.set(True)
+        try:
+            await asyncio.wait_for(service.bot.send_message(9, "Interactive message"), timeout=1)
+        finally:
+            cloud_io.IMMEDIATE_REPLIES.reset(immediate)
+    await asyncio.wait_for(background, timeout=1)
+    texts = [call.args[2]["text"] for call in cloud_io.telegram.call_args_list]
+    assert texts == ["Interactive message", "Scheduled message"]
+    print(
+        "Cloud static sleep mode, weather refresh on retries, stale queue cancellation and lock concurrency verified"
     )
 
 

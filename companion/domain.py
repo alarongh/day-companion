@@ -35,11 +35,14 @@ class SleepSettings(Model):
     reminder_minutes: int = Field(default=30, ge=0, le=180)
     wake_lead: int = Field(default=0, ge=0, le=180)
     free_day_wake: str | None = None
+    week_start: Date | None = None
 
     @model_validator(mode="after")
     def check(self):
         if self.free_day_wake is not None:
             clock(self.free_day_wake)
+        if self.week_start and self.week_start.weekday() != 0:
+            raise ValueError("Начало цикла недель сна должно быть понедельником")
         return self
 
 
@@ -155,6 +158,8 @@ class Rule(Model):
 
 
 class Profile(Model):
+    routine_mode: Literal["full", "sleep_only"] = "full"
+    sleep_schedule: list[Lesson] = Field(default_factory=list, max_length=2000)
     city: str = ""
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
@@ -206,6 +211,10 @@ class Profile(Model):
     @model_validator(mode="after")
     def check(self):
         ZoneInfo(self.timezone)
+        if len({x.id for x in self.sleep_schedule}) != len(self.sleep_schedule):
+            raise ValueError("Повторяющиеся идентификаторы статичного расписания сна")
+        if any(x.weeks or x.parity != "all" for x in self.sleep_schedule) and not self.sleep.week_start:
+            raise ValueError("Для чётности статичного расписания сна нужен sleep.week_start")
         for v in [self.quiet_start, self.quiet_end, self.fixed_briefing]:
             if v is not None:
                 clock(v)
@@ -401,6 +410,8 @@ class Notice(BaseModel):
 
 
 def plan_notices(items: list[Occurrence], p: Profile, day: Date) -> list[Notice]:
+    if p.routine_mode == "sleep_only":
+        return []
     if not p.notifications or not items or p.pause_until and day <= p.pause_until or day in p.home_dates:
         return []
     leave = departure(items, p)

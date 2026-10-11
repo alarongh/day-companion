@@ -231,6 +231,214 @@
     "Settings": {
       "additionalProperties": false,
       "properties": {
+        "lesson_notes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Lesson Notes"
+        },
+        "departure_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Departure Lead"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Longitude"
+        },
+        "travel": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Travel"
+        },
+        "sleep_schedule": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Lesson"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Sleep Schedule"
+        },
+        "buffer": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Buffer"
+        },
+        "home_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Home Place"
+        },
+        "quiet_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Quiet Start"
+        },
+        "fixed_briefing": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Fixed Briefing"
+        },
+        "hourly_temperature": {
+          "anyOf": [
+            {
+              "enum": [
+                "weighted_mean",
+                "coldest"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Hourly Temperature"
+        },
+        "campus_routes": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Routes"
+        },
+        "lesson_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Lesson Lead"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "City"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Scenario"
+        },
+        "temperature_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "actual",
+                "feels"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Temperature Mode"
+        },
         "timezone": {
           "anyOf": [
             {
@@ -257,97 +465,6 @@
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
           "title": "Return Delay"
         },
-        "longitude": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Longitude"
-        },
-        "lesson_lead": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Lesson Lead"
-        },
-        "destination_place": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Destination Place"
-        },
-        "briefing_lead": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Briefing Lead"
-        },
-        "quiet_start": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Quiet Start"
-        },
-        "outdoor_after": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Outdoor After"
-        },
-        "rain_threshold": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Rain Threshold"
-        },
         "default_transfer": {
           "anyOf": [
             {
@@ -360,279 +477,6 @@
           "default": null,
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
           "title": "Default Transfer"
-        },
-        "home_place": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Home Place"
-        },
-        "lesson_notes": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Lesson Notes"
-        },
-        "fixed_briefing": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Fixed Briefing"
-        },
-        "campus_routes": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Campus Routes"
-        },
-        "transfers": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Transfers"
-        },
-        "departure_lead": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Departure Lead"
-        },
-        "temperature_mode": {
-          "anyOf": [
-            {
-              "enum": [
-                "actual",
-                "feels"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Temperature Mode"
-        },
-        "comfort_offset": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Comfort Offset"
-        },
-        "buffer": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Buffer"
-        },
-        "short_break": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Short Break"
-        },
-        "outdoor_before": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Outdoor Before"
-        },
-        "quiet_end": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Quiet End"
-        },
-        "city": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "City"
-        },
-        "travel": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Travel"
-        },
-        "campus_places": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Campus Places"
-        },
-        "hourly_temperature": {
-          "anyOf": [
-            {
-              "enum": [
-                "weighted_mean",
-                "coldest"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Hourly Temperature"
-        },
-        "semester_end": {
-          "anyOf": [
-            {
-              "format": "date",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Semester End"
-        },
-        "campus_walk": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Campus Walk"
-        },
-        "preparation": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Preparation"
-        },
-        "notifications": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Notifications"
         },
         "subgroup": {
           "anyOf": [
@@ -647,10 +491,10 @@
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
           "title": "Subgroup"
         },
-        "latitude": {
+        "notifications": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "boolean"
             },
             {
               "type": "null"
@@ -658,7 +502,33 @@
           ],
           "default": null,
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Latitude"
+          "title": "Notifications"
+        },
+        "campus_walk": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Walk"
+        },
+        "short_break": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Short Break"
         },
         "semester_start": {
           "anyOf": [
@@ -674,7 +544,35 @@
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
           "title": "Semester Start"
         },
-        "scenario": {
+        "transfers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Transfers"
+        },
+        "semester_end": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Semester End"
+        },
+        "quiet_end": {
           "anyOf": [
             {
               "type": "string"
@@ -685,7 +583,142 @@
           ],
           "default": null,
           "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
-          "title": "Scenario"
+          "title": "Quiet End"
+        },
+        "campus_places": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Campus Places"
+        },
+        "briefing_lead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Briefing Lead"
+        },
+        "rain_threshold": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Rain Threshold"
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Preparation"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Latitude"
+        },
+        "outdoor_before": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Outdoor Before"
+        },
+        "destination_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Destination Place"
+        },
+        "comfort_offset": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Comfort Offset"
+        },
+        "outdoor_after": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Outdoor After"
+        },
+        "routine_mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "full",
+                "sleep_only"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Merge only supplied fields; maps merge by key; null deletes a map entry.",
+          "title": "Routine Mode"
         },
         "sleep": {
           "additionalProperties": true,

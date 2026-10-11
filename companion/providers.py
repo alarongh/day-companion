@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -13,7 +12,6 @@ from .importers import parse_ics
 class Providers:
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
-        self.weather_cache = {}
 
     async def cities(self, name):
         r = await self.client.get(
@@ -43,50 +41,41 @@ class Providers:
     async def weather(self, p: Profile, windows):
         if p.latitude is None or p.longitude is None or not windows:
             return []
-        key = (p.latitude, p.longitude, p.timezone)
-        now = time.time()
-        cached = self.weather_cache.get(key)
-        if cached and now - cached[0] < 900:
-            hours = cached[1]
-        else:
-            r = await self.client.get(
-                "https://api.open-meteo.com/v1/forecast",
-                params={
-                    "latitude": p.latitude,
-                    "longitude": p.longitude,
-                    "timezone": p.timezone,
-                    "forecast_days": 3,
-                    "wind_speed_unit": "kmh",
-                    "hourly": "temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_speed_10m",
-                },
+        r = await self.client.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": p.latitude,
+                "longitude": p.longitude,
+                "timezone": p.timezone,
+                "forecast_days": 3,
+                "wind_speed_unit": "kmh",
+                "hourly": "temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_speed_10m",
+            },
+        )
+        r.raise_for_status()
+        hourly = r.json()["hourly"]
+        hours = []
+        for index, value in enumerate(hourly["time"]):
+            keys = (
+                "temperature_2m",
+                "apparent_temperature",
+                "precipitation_probability",
+                "precipitation",
+                "wind_speed_10m",
             )
-            r.raise_for_status()
-            hourly = r.json()["hourly"]
-            hours = []
-            for index, value in enumerate(hourly["time"]):
-                keys = (
-                    "temperature_2m",
-                    "apparent_temperature",
-                    "precipitation_probability",
-                    "precipitation",
-                    "wind_speed_10m",
+            values = [hourly[k][index] for k in keys]
+            if any(v is None for v in values):
+                continue
+            hours.append(
+                WeatherHour(
+                    at=datetime.fromisoformat(value).replace(tzinfo=ZoneInfo(p.timezone)),
+                    temperature=values[0],
+                    feels=values[1],
+                    rain_probability=values[2],
+                    precipitation=values[3],
+                    wind=values[4],
                 )
-                values = [hourly[k][index] for k in keys]
-                if any(v is None for v in values):
-                    continue
-                hours.append(
-                    WeatherHour(
-                        at=datetime.fromisoformat(value).replace(tzinfo=ZoneInfo(p.timezone)),
-                        temperature=values[0],
-                        feels=values[1],
-                        rain_probability=values[2],
-                        precipitation=values[3],
-                        wind=values[4],
-                    )
-                )
-            self.weather_cache[key] = (now, hours)
-            if len(self.weather_cache) > 1000:
-                self.weather_cache = {k: v for k, v in self.weather_cache.items() if now - v[0] < 900}
+            )
         selected = []
         # Include both adjacent forecast hours: a 07:50 departure must not use just 08:00.
         from datetime import timedelta

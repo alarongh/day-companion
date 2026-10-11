@@ -91,6 +91,7 @@ class Companion(DurableObject):
         self.dispatcher = Dispatcher()
         self.dispatcher.include_router(self.application.router)
         self.worker = Worker(self.store, self.providers, self.bot, self.locks, day_buttons)
+        self.bot.session.notice_handler = self.worker.prepare_delivery
         self.mutex = asyncio.Lock()
         self.active_updates = set()
         self.initialized = True
@@ -260,13 +261,29 @@ class Companion(DurableObject):
                     return Response.from_json({"http": status, "description": description, "bytes": len(raw)})
                 p = Profile.model_validate(data["profile"])
                 day = date.fromisoformat(data["day"])
-                items = occurrences([Lesson.model_validate(x) for x in data["lessons"]], p, day)
+                from companion.domain import plan_notices
+                from companion.journey import extra_notices
+                from companion.service import static_sleep_items
+
+                items = (
+                    static_sleep_items(p, day)
+                    if p.routine_mode == "sleep_only"
+                    else occurrences([Lesson.model_validate(x) for x in data["lessons"]], p, day)
+                )
                 times = journey_times(items, p)
                 sleep = sleep_times(items, p, day)
-                weather = await route_weather(self.providers, p, items) if data.get("weather") else ""
+                weather = (
+                    await route_weather(self.providers, p, items)
+                    if data.get("weather") and p.routine_mode == "full"
+                    else ""
+                )
                 return Response.from_json(
                     {
                         "ok": True,
+                        "routine_mode": p.routine_mode,
+                        "notice_kinds": sorted(
+                            {n.kind for n in plan_notices(items, p, day) + extra_notices(items, p, day, {})}
+                        ),
                         "home": times["home_estimate"].isoformat() if times else None,
                         "wake": sleep[0].isoformat() if sleep else None,
                         "bed": sleep[1].isoformat() if sleep else None,

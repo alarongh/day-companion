@@ -53,6 +53,16 @@ MENU = ReplyKeyboardMarkup(
         [KeyboardButton(text="Расписание"), KeyboardButton(text="Одежда")],
         [KeyboardButton(text="Сценарии"), KeyboardButton(text="Настройки")],
         [KeyboardButton(text="Подобрать одежду"), KeyboardButton(text="Уведомления")],
+        [KeyboardButton(text="Режим")],
+    ],
+    resize_keyboard=True,
+)
+
+SLEEP_MENU = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Сон"), KeyboardButton(text="Сегодня"), KeyboardButton(text="Завтра")],
+        [KeyboardButton(text="Настроить через ИИ"), KeyboardButton(text="Расписание сна")],
+        [KeyboardButton(text="Уведомления"), KeyboardButton(text="Режим")],
     ],
     resize_keyboard=True,
 )
@@ -177,6 +187,7 @@ class Application:
         self.router.message.register(self.config_menu, Command("config"))
         self.router.message.register(self.weather, Command("weather"))
         self.router.message.register(self.sleep_menu, Command("sleep"))
+        self.router.message.register(self.mode_menu, Command("mode"))
         self.router.message.register(self.arrived, Command("home"))
         self.router.message.register(self.conditions, Command("conditions"))
         self.router.message.register(self.location, F.location)
@@ -196,6 +207,34 @@ class Application:
 
     def uid(self, event):
         return event.from_user.id
+
+    def menu(self, uid):
+        return SLEEP_MENU if self.store.profile(uid).routine_mode == "sleep_only" else MENU
+
+    async def mode_menu(self, m, uid=None):
+        uid = self.uid(m) if uid is None else uid
+        p = self.store.profile(uid)
+        await m.answer(
+            "Режим: "
+            + ("только сон" if p.routine_mode == "sleep_only" else "полный")
+            + ".\nВ режиме сна используются только статичное расписание сна, дорога, сборы и цель сна. "
+            "Группа МИРЭА, погода и остальные напоминания не участвуют. "
+            "Расписание и часы сна задай через «Настроить через ИИ»; поле profile.routine_mode = sleep_only.",
+            reply_markup=inline([[("Только сон", "mode:sleep_only"), ("Полный режим", "mode:full")]]),
+        )
+
+    async def static_sleep_schedule(self, m):
+        uid = self.uid(m)
+        p = self.store.profile(uid)
+        await self.say(
+            m,
+            "Статичное расписание сна:\n"
+            + agenda(day_items(self.store, uid, self.local_now(uid).date()))
+            + "\n\nЗагрузи расписание файлом или измени profile.sleep_schedule через /config. "
+            "Для одинакового подъёма ежедневно задай sleep.free_day_wake. "
+            f"Часовой пояс: {p.timezone}.",
+            reply_markup=self.menu(uid),
+        )
 
     def local_now(self, uid):
         return datetime.now(ZoneInfo(self.store.profile(uid).timezone))
@@ -218,7 +257,7 @@ class Application:
             "Я помогу выбрать верхнюю одежду, рассчитать выход, подъём и сон, напомнить об аудиториях и личных делах. У каждого здесь своё расписание и настройки.\n\nНачни с «Настроить через ИИ». Если нужен источник МИРЭА, подключи группу через /mirea.\n\n/ privacy — данные и приватность".replace(
                 "/ privacy", "/privacy"
             ),
-            reply_markup=MENU,
+            reply_markup=self.menu(uid),
         )
         await self.config_menu(m)
 
@@ -239,7 +278,9 @@ class Application:
 
     async def cancel_flow(self, m):
         self.flow(self.uid(m))
-        await m.answer("Заполнение отменено. Сохранённые данные на месте.", reply_markup=MENU)
+        await m.answer(
+            "Заполнение отменено. Сохранённые данные на месте.", reply_markup=self.menu(self.uid(m))
+        )
 
     async def setup(self, m):
         self.flow(self.uid(m), action="city")
@@ -278,6 +319,9 @@ class Application:
     async def weather(self, m, uid=None):
         uid = self.uid(m) if uid is None else uid
         p = self.store.profile(uid)
+        if p.routine_mode == "sleep_only":
+            await m.answer("В режиме только сна погода отключена. Выбрать полный режим: /mode.")
+            return
         await self.say(
             m,
             await weather_report(self.providers, p, self.local_now(uid).date()),
@@ -285,10 +329,12 @@ class Application:
         )
 
     async def config_menu(self, m):
-        self.flow(self.uid(m))
+        uid = self.uid(m)
+        self.flow(uid)
+        sleeping = self.store.profile(uid).routine_mode == "sleep_only"
         await m.answer(
             "Настройка через ИИ:\n1. Скачай нужный промпт и отправь его в свой чат с ИИ.\n2. Ответь на вопросы; получи JSON с настройками.\n3. Отправь JSON сюда текстом или файлом .json/.txt.\n4. Проверь изменения и нажми «Применить».\n\nДля правок всегда бери свежий промпт «Изменить настройки»: он содержит текущее состояние. Бот сам не обращается к ИИ и не требует ключа ИИ. В промпте могут быть твои расписание и координаты; передавай его выбранному ИИ по своему решению.",
-            reply_markup=MENU,
+            reply_markup=self.menu(uid),
         )
         await m.answer(
             "Выбери действие:",
@@ -297,6 +343,11 @@ class Application:
                     [("Первичная настройка", "cfg:setup"), ("Изменить настройки", "cfg:patch")],
                     [("Точки погоды", "cfg:places"), ("Текущие данные", "cfg:state")],
                     [("Обычная настройка города", "city"), ("Группа МИРЭА", "group")],
+                ]
+                if not sleeping
+                else [
+                    [("Первичная настройка", "cfg:setup"), ("Изменить настройки", "cfg:patch")],
+                    [("Текущие данные", "cfg:state")],
                 ]
             ),
         )
@@ -309,7 +360,9 @@ class Application:
             texts.append(f"{day:%d.%m}:\n" + sleep_report(self.store, uid, day))
         await m.answer(
             "\n\n".join(texts)
-            + "\n\nИзменить часы сна, сборы и свободные дни: /config → «Изменить настройки»."
+            + "\n\nИзменить часы сна, сборы и свободные дни: /config → «Изменить настройки». "
+            "Режим только сна: /mode.",
+            reply_markup=self.menu(uid),
         )
 
     async def confirm_home(self, m, uid, day):
@@ -408,16 +461,40 @@ class Application:
     async def today(self, m):
         uid = self.uid(m)
         day = self.local_now(uid).date()
-        await self.say(m, await briefing(self.store, self.providers, uid, day), reply_markup=day_buttons(day))
+        await self.say(
+            m,
+            await briefing(self.store, self.providers, uid, day),
+            reply_markup=self.menu(uid)
+            if self.store.profile(uid).routine_mode == "sleep_only"
+            else day_buttons(day),
+        )
 
     async def tomorrow(self, m):
         uid = self.uid(m)
         day = self.local_now(uid).date() + timedelta(days=1)
-        await self.say(m, await briefing(self.store, self.providers, uid, day), reply_markup=day_buttons(day))
+        await self.say(
+            m,
+            await briefing(self.store, self.providers, uid, day),
+            reply_markup=self.menu(uid)
+            if self.store.profile(uid).routine_mode == "sleep_only"
+            else day_buttons(day),
+        )
 
     async def schedule_menu(self, m):
         uid = self.uid(m)
         p = self.store.profile(uid)
+        if p.routine_mode == "sleep_only":
+            await m.answer(
+                f"Статичное расписание сна: {len(p.sleep_schedule)} записей. "
+                "Загрузи файл вручную или настрой profile.sleep_schedule через /config.",
+                reply_markup=inline(
+                    [
+                        [("Загрузить вручную", "upload"), ("Шаблон файла", "template")],
+                        [("Изменить через ИИ", "cfg:patch")],
+                    ]
+                ),
+            )
+            return
         status = f"МИРЭА: {p.mirea_name}" if p.source == "mirea" else "Ручная загрузка"
         await m.answer(
             f"Источник: {status}. Сохранено занятий: {len(self.store.lessons(uid))}.\n\nМожно загрузить ICS, CSV, XLSX, JSON или текст. PDF и изображения распознаются локально, но сложную таблицу может понадобиться преобразовать в шаблон.\n\nНовое расписание сначала показывается для проверки.",
@@ -431,6 +508,11 @@ class Application:
         )
 
     async def group_prompt(self, m):
+        if self.store.profile(self.uid(m)).routine_mode == "sleep_only":
+            await m.answer(
+                "В режиме сна используется статичное расписание. Настрой его через /config или /schedule."
+            )
+            return
         self.flow(self.uid(m), action="group")
         await m.answer("Напиши название группы МИРЭА, например БСБО-11-23. Затем выбери точное совпадение.")
 
@@ -587,7 +669,20 @@ class Application:
         uid, m, value = self.uid(c), c.message, c.data or ""
         p, s = self.store.profile(uid), self.store.session(uid)
         await c.answer()
-        if value.startswith("cfg:"):
+        if value.startswith("mode:"):
+            mode = value.split(":", 1)[1]
+            if mode not in ("full", "sleep_only"):
+                raise ValueError("Неизвестный режим")
+            p.routine_mode = mode
+            if mode == "sleep_only":
+                p.sleep.enabled = True
+            self.store.save_profile(uid, p)
+            self.flow(uid)
+            await m.answer(
+                "Режим сохранён. Настройки: /config. Уведомления: /notifications.",
+                reply_markup=self.menu(uid),
+            )
+        elif value.startswith("cfg:"):
             kind = value.split(":")[1]
             if kind in ("setup", "patch"):
                 text = prompt(self.store, uid, patch=kind == "patch")
@@ -654,7 +749,7 @@ class Application:
                     "Настройки сохранены. Расписание, выход, сон и напоминания пересчитаны."
                     + (
                         "\nОтметь районы через /config → «Точки погоды»: " + ", ".join(missing)
-                        if missing
+                        if missing and result[0].routine_mode == "full"
                         else ""
                     )
                     + (
@@ -662,7 +757,7 @@ class Application:
                         if result[0].notifications
                         else "\nУведомления пока выключены: /notifications."
                     ),
-                    reply_markup=MENU,
+                    reply_markup=self.menu(uid),
                 )
         elif value.startswith("arrived:"):
             await self.confirm_home(m, uid, date.fromisoformat(value.split(":")[1]))
@@ -752,14 +847,31 @@ class Application:
                     )
                 )
             else:
-                if any(x.weeks or x.parity != "all" for x in lessons) and not p.semester_start:
+                if any(x.weeks or x.parity != "all" for x in lessons) and not (
+                    p.sleep.week_start if p.routine_mode == "sleep_only" else p.semester_start
+                ):
                     raise ValueError(
                         "Сначала задай понедельник первой учебной недели в настройках. Результат загрузки сохранён, затем нажми эту кнопку ещё раз."
                     )
                 if meta.get("operation") == "append":
+                    if p.routine_mode == "sleep_only":
+                        raise ValueError(
+                            "В режиме сна загрузи статичное расписание без добавления личных событий"
+                        )
                     self.store.add_personal(uid, lessons)
                     self.store.clear_draft(uid)
                     await m.answer("Личные события добавлены. Обновление группы их сохранит.")
+                    return
+                if p.routine_mode == "sleep_only":
+                    if meta.get("source") == "mirea":
+                        raise ValueError("Для режима сна нужно статичное расписание, а не источник МИРЭА")
+                    p.sleep_schedule = lessons
+                    self.store.save_profile(uid, p)
+                    self.store.clear_draft(uid)
+                    await m.answer(
+                        "Статичное расписание сна сохранено. Время сна пересчитано.",
+                        reply_markup=self.menu(uid),
+                    )
                     return
                 updates = meta or {
                     "source": "manual",
@@ -777,6 +889,8 @@ class Application:
                     reply_markup=MENU,
                 )
         elif value == "refresh":
+            if p.routine_mode == "sleep_only":
+                raise ValueError("Статичное расписание сна не обновляется из МИРЭА")
             if p.source != "mirea" or not p.mirea_id:
                 raise ValueError("Сначала выбери группу МИРЭА")
             first, last = self.local_now(uid).date(), self.local_now(uid).date() + timedelta(days=120)
@@ -863,14 +977,14 @@ class Application:
         elif value.startswith("notify:"):
             action = value.split(":")[1]
             if action == "toggle":
-                if not p.notifications and not p.city and not p.places:
+                if p.routine_mode == "full" and not p.notifications and not p.city and not p.places:
                     raise ValueError("Сначала настрой город и часовой пояс через /setup")
                 p.notifications = not p.notifications
             elif action == "pause":
                 p.pause_until = self.local_now(uid).date()
             elif action == "resume":
                 p.notifications, p.pause_until = True, None
-                if not p.city and not p.places:
+                if p.routine_mode == "full" and not p.city and not p.places:
                     raise ValueError("Сначала настрой город через /setup")
             self.store.save_profile(uid, p)
             await m.answer(
@@ -955,6 +1069,8 @@ class Application:
             "Погода": self.weather,
             "Точки погоды": self.weather_points,
             "Сон": self.sleep_menu,
+            "Режим": self.mode_menu,
+            "Расписание сна": self.static_sleep_schedule,
             "Я дома": self.arrived,
             "Условия": self.conditions,
             "Сегодня": self.today,

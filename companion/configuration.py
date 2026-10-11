@@ -162,8 +162,10 @@ def prepare(store, uid, config):
     for key, value in changes.items():
         if value is None and type(None) not in get_args(Profile.model_fields[key].annotation):
             raise ValueError(f"Поле {key} не может быть null")
-        if key == "sleep" and any(v is None and k != "free_day_wake" for k, v in value.items()):
-            raise ValueError("В настройках сна только free_day_wake может быть null")
+        if key == "sleep" and any(
+            v is None and k not in {"free_day_wake", "week_start"} for k, v in value.items()
+        ):
+            raise ValueError("В настройках сна только free_day_wake и week_start могут быть null")
         data[key] = merge_map(data[key], value) if isinstance(value, dict) else value
     for key, (model, ident) in COLLECTIONS.items():
         data[key] = [
@@ -249,6 +251,8 @@ def prepare(store, uid, config):
 
 
 LABELS = {
+    "routine_mode": "Режим работы",
+    "sleep_schedule": "Статичное расписание сна",
     "sleep": "Сон",
     "travel": "Дорога",
     "preparation": "Сборы",
@@ -318,18 +322,20 @@ def prompt(store, uid, patch=False):
     state = snapshot(store, uid)
     context = ""
     p = store.profile(uid)
-    if p.source == "mirea":
+    if p.source == "mirea" and p.routine_mode == "full":
         # Read-only context, not part of preference revision: refreshed lessons must not stale an AI patch.
         context = "\nРасписание источника (контекст, не заменять без просьбы):\n" + json.dumps(
             [x.model_dump(mode="json") for x in store.base_lessons(uid)][:150], ensure_ascii=False
         )
     return f'''Помоги настроить Telegram-бота Daily routine. Общайся со мной по-русски.
 Режим: {"изменить только то, что я попрошу; не опрашивай заново и не меняй остальное" if patch else "сначала опроси меня простыми вопросами, затем сформируй настройки"}.
-Выясни города и районы дома/учёбы/работы, длительность дороги, сборов, запас, путь от входа до аудитории, время на улице возле дома и точки назначения, задержку после последнего занятия. Можно несколько точек и campus_places для разных корпусов. Никогда не выдумывай координаты: оставь latitude/longitude null, я отмечу район на карте в боте. Не нужен точный домашний адрес.
-Уточни мои вещи верхней одежды, пороги фактической/ощущаемой температуры, дождь, ветер, предпочтения и приоритеты. Правила могут зависеть от scenario. Средняя температура считается по минутам на улице отдельно для каждого часа; выбирается самый прохладный из этих часов. Не усредняй весь день, маскируя холод утром. hourly_temperature=coldest выбирает минимум прогнозных значений вместо среднего часа. outdoor_before/outdoor_after — минуты на улице, не вся дорога.
+Сначала уточни режим profile.routine_mode: full (все функции) или sleep_only (только напоминания ко сну). Это поле данных, не программный код; верхний mode=setup/patch задаёт способ внесения правок и не является режимом работы бота.
+Для sleep_only опрашивай только о часовом поясе, цели сна, засыпании, времени напоминания, статичном расписании работы/учёбы, дороге и сборах. profile.sleep_schedule — отдельный список Lesson: title, start, end, date ИЛИ weekday (0=понедельник), стабильный id; допустимы parity/weeks с sleep.week_start (понедельник первой недели собственного цикла) и сроки действия valid_from/valid_until. Он не синхронизируется с МИРЭА, не требует города/координат и не меняет подключённую группу. Для дня без событий используй sleep.free_day_wake. Если нужен фиксированный подъём каждый день, достаточно пустого sleep_schedule и free_day_wake. Включи sleep.enabled и notifications только с согласия пользователя. При смене режима сохрани старые данные полного режима; списки заменяются целиком, для правки sleep_schedule верни весь обновлённый список. В sleep_only не опрашивай о погоде/одежде и не запрашивай подключение МИРЭА.
+Только для full выясни города и районы дома/учёбы/работы, длительность дороги, сборов, запас, путь от входа до аудитории, время на улице возле дома и точки назначения, задержку после последнего занятия. Можно несколько точек и campus_places для разных корпусов. Никогда не выдумывай координаты: оставь latitude/longitude null, я отмечу район на карте в боте. Не нужен точный домашний адрес.
+Только для full уточни мои вещи верхней одежды, пороги фактической/ощущаемой температуры, дождь, ветер, предпочтения и приоритеты. Правила могут зависеть от scenario. Средняя температура считается по минутам на улице отдельно для каждого часа; выбирается самый прохладный из этих часов. Не усредняй весь день, маскируя холод утром. hourly_temperature=coldest выбирает минимум прогнозных значений вместо среднего часа. outdoor_before/outdoor_after — минуты на улице, не вся дорога.
 Сон: sleep.enabled, hours (моя цель сна), latency_minutes на засыпание, reminder_minutes до сна, wake_lead до сборов, free_day_wake для свободных дней. Подъём = первая пара - дорога - campus_walk - buffer - preparation - wake_lead. Отбой = подъём - hours - latency_minutes. Напоминание о сне переносится раньше начала тихих часов; утренняя сводка во время тихих часов откладывается до их конца. Для сводки точно при подъёме нужно согласовать тихие часы или отключить их равными quiet_start/quiet_end. fixed_briefing=null означает автоматическую сводку. Не используй allowed_lateness для сдвига выхода, это только заметка.
 Расписание: weekday 0=понедельник..6=воскресенье ИЛИ date YYYY-MM-DD; start/end HH:MM; parity all/odd/even, weeks номера от 1; semester_start понедельник первой учебной недели, semester_end конец. Уточни подгруппу. Укажи стабильные id, title, room, campus, place_id, note, allowed_lateness. lesson_notes по точному названию или id дополняет расписание МИРЭА. МИРЭА подключается кнопкой /mirea в боте, не логином/паролем; существующий источник не заменять без просьбы.
-Напоминания: time, wake, departure, arrival, last_lesson, bedtime, lesson_start (subject точное название/id либо все), home, condition. offset_minutes отрицательный = до, положительный = после. Для home/condition только >=0. home срабатывает ТОЛЬКО после кнопки «Я дома», никогда по расчётному возвращению. condition — после кнопки подтверждения названного условия; не обещай автоматическое определение геопозиции/задач. date, weekdays, parity, weeks ограничивают дни. enabled и expires_minutes задают активность и срок актуальности. notifications включает все уведомления, уточни согласие пользователя.
+Напоминания: time, wake, departure, arrival, last_lesson, bedtime, lesson_start (subject точное название/id либо все), home, condition. offset_minutes отрицательный = до, положительный = после. Для home/condition только >=0. home срабатывает ТОЛЬКО после кнопки «Я дома», никогда по расчётному возвращению. condition — после кнопки подтверждения названного условия; не обещай автоматическое определение геопозиции/задач. date, weekdays, parity, weeks ограничивают дни. enabled и expires_minutes задают активность и срок актуальности. notifications включает уведомления выбранного режима, уточни согласие пользователя.
 Профиль объединяется по указанным полям, вложенные словари по ключам; null удаляет ключ словаря (для необязательных полей означает пустое значение). Списки в profile заменяются целиком, не присылай их без нужды. В коллекциях upsert содержит ПОЛНЫЙ объект с прежним id/name, незатронутые объекты сохраняются; remove удаляет только перечисленное. schedule/personal mode=upsert изменяет по id; mode=replace заменяет весь соответствующий список только при явной просьбе. overrides задаёт разовые правки day+lesson_id+change, change=null удаляет разовую правку. Все неуказанные данные сохраняются. Не присылай runtime поля, токены и код.
 После согласования выдай ОДИН JSON (можно блок ```json) строго по схеме, без неизвестных полей. Обязательные format="{FORMAT}", mode="{"patch" if patch else "setup"}", base_revision="{state["base_revision"]}". Значения schema defaults не нужно дублировать. Я загружу ответ файлом .json/.txt или текстом в бот и проверю изменения.
 Текущее состояние:\n{json.dumps(state, ensure_ascii=False, indent=2)}{context}

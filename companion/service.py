@@ -11,8 +11,22 @@ from .forecast import route_weather, temperature_at
 from .journey import journey_times, sleep_times
 
 
+def static_sleep_items(p, day):
+    static = p.model_copy(
+        update={
+            "semester_start": p.sleep.week_start,
+            "semester_end": None,
+            "subgroup": "",
+            "lesson_notes": {},
+        }
+    )
+    return occurrences(p.sleep_schedule, static, day)
+
+
 def day_items(store, uid, day):
     p = store.profile(uid)
+    if p.routine_mode == "sleep_only":
+        return static_sleep_items(p, day)
     if day in p.home_dates:
         return []
     return occurrences(store.lessons(uid), p, day, store.overrides(uid, day))
@@ -75,6 +89,8 @@ async def weather_report(providers, p, day):
 
 async def briefing(store, providers, uid, day):
     p = store.profile(uid)
+    if p.routine_mode == "sleep_only":
+        return f"Сон · {day:%d.%m.%Y}\n" + sleep_report(store, uid, day)
     items = day_items(store, uid, day)
     if not items:
         suffix = "Сегодня выбран режим «Дома»." if day in p.home_dates else "Занятий нет."

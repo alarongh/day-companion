@@ -1,0 +1,30 @@
+{
+  "format": "day-companion/v2",
+  "mode": "setup",
+  "base_revision": "f932d73d9d573780925f3c29",
+  "profile": {
+    "routine_mode": "sleep_only",
+    "timezone": "Europe/Moscow",
+    "notifications": true,
+    "travel": 60,
+    "preparation": 45,
+    "buffer": 10,
+    "campus_walk": 0,
+    "sleep": {
+      "enabled": true,
+      "hours": 8,
+      "latency_minutes": 15,
+      "reminder_minutes": 30,
+      "free_day_wake": "09:00"
+    },
+    "sleep_schedule": [
+      {
+        "id": "monday-work",
+        "title": "Работа",
+        "weekday": 0,
+        "start": "09:00",
+        "end": "18:00"
+      }
+    ]
+  }
+}
