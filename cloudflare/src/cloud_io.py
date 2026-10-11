@@ -8,7 +8,7 @@ from collections import defaultdict
 from contextvars import ContextVar
 
 import httpx
-from workers import Blob, FormData, fetch
+from workers import Request, fetch
 
 from companion.telegram import BufferedInputFile, Message, encode
 
@@ -48,14 +48,25 @@ async def telegram(token, method, payload, files=None):
 
 async def _telegram(token, method, payload, files=None):
     if files:
-        form = FormData()
-        for key, value in payload.items():
-            form[key] = json.dumps(value) if isinstance(value, (dict, list, bool)) else str(value)
-        for key, file in files.items():
-            form.append(key, Blob(base64.b64decode(file["data"])), file["name"])
-        response = await fetch(
-            f"https://api.telegram.org/bot{token}/{method}", method="POST", body=form.js_object
+        # Serialize before fetch: streaming FormData can reach Telegram as an
+        # unknown-length body, which it rejects with an empty HTTP 400 response.
+        fields = {
+            key: json.dumps(value) if isinstance(value, (dict, list, bool)) else str(value)
+            for key, value in payload.items()
+            if key not in files
+        }
+        uploads = {
+            key: (file["name"], base64.b64decode(file["data"]), "application/octet-stream")
+            for key, file in files.items()
+        }
+        multipart = httpx.Request("POST", "https://example.invalid", data=fields, files=uploads)
+        request = Request(
+            f"https://api.telegram.org/bot{token}/{method}",
+            method="POST",
+            headers={"Content-Type": multipart.headers["content-type"]},
+            body=multipart.read(),
         )
+        response = await fetch(request)
     else:
         response = await fetch(
             f"https://api.telegram.org/bot{token}/{method}",

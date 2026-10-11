@@ -16,12 +16,13 @@ import httpx
 from dotenv import load_dotenv
 
 from .configuration import Configuration, decode_config, prepare, prompt, snapshot
-from .domain import Garment, Lesson, Profile, Rule, choose_clothing
+from .domain import Garment, Lesson, Place, Profile, Rule, choose_clothing
 from .importers import import_file, parse_text
+from .inputs import input_error, temperature_range
 from .journey import journey_times
 from .providers import Providers
 from .runtime import process_lock
-from .service import agenda, briefing, day_items, import_warnings, sleep_report
+from .service import agenda, briefing, day_items, import_warnings, sleep_report, weather_report
 from .store import Store
 from .telegram import (
     BaseMiddleware,
@@ -46,6 +47,7 @@ from .worker import Worker
 MENU = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Сегодня"), KeyboardButton(text="Завтра")],
+        [KeyboardButton(text="Погода"), KeyboardButton(text="Точки погоды")],
         [KeyboardButton(text="Настроить через ИИ"), KeyboardButton(text="Сон")],
         [KeyboardButton(text="Я дома"), KeyboardButton(text="Условия")],
         [KeyboardButton(text="Расписание"), KeyboardButton(text="Одежда")],
@@ -143,17 +145,22 @@ class PrivateAccess(BaseMiddleware):
             try:
                 return await handler(event, data)
             except (ValueError, KeyError, IndexError, TypeError) as exc:
-                # Validation errors are useful to this user, but never log personal input.
-                text = str(exc).split("For further information")[0][:1200]
+                text = input_error(exc)
                 if isinstance(event, CallbackQuery):
                     await event.answer("Не получилось. Подробности в чате.")
                 await message.answer("Проверь ввод: " + text + "\nМожно повторить или нажать /cancel.")
             except httpx.HTTPError:
                 if isinstance(event, CallbackQuery):
                     await event.answer("Сервис сейчас недоступен.")
-                await message.answer(
-                    "Сервис сейчас недоступен. Попробуй позже. Сохранённые настройки и расписание остались на месте."
-                )
+                if self.store.session(user.id).get("action") in ("group", "grouppick"):
+                    await message.answer(
+                        "Сервис расписания МИРЭА временно недоступен. Можно загрузить расписание файлом или текстом; погода, одежда и настройки работают отдельно. Сохранённое расписание осталось на месте.",
+                        reply_markup=inline([[("Загрузить расписание вручную", "upload")]]),
+                    )
+                else:
+                    await message.answer(
+                        "Сервис сейчас недоступен. Попробуй позже. Сохранённые настройки и расписание остались на месте."
+                    )
 
 
 class Application:
@@ -168,6 +175,7 @@ class Application:
         self.router.message.register(self.cancel_flow, Command("cancel"))
         self.router.message.register(self.setup, Command("setup"))
         self.router.message.register(self.config_menu, Command("config"))
+        self.router.message.register(self.weather, Command("weather"))
         self.router.message.register(self.sleep_menu, Command("sleep"))
         self.router.message.register(self.arrived, Command("home"))
         self.router.message.register(self.conditions, Command("conditions"))
@@ -216,7 +224,7 @@ class Application:
 
     async def help(self, m):
         await m.answer(
-            "/config — промпты для настройки и изменения через ИИ\n/sleep — расчёт сна\n/home — подтвердить возвращение домой\n/conditions — подтвердить своё условие"
+            "/config — промпты для настройки и изменения через ИИ\n/weather — погода без расписания\n/sleep — расчёт сна\n/home — подтвердить возвращение домой\n/conditions — подтвердить своё условие"
         )
         await m.answer(
             "Основные действия — кнопками внизу.\n/setup — город и время дороги\n/schedule — источник и загрузка\n/wardrobe — твои вещи\n/rules — условия выбора одежды\n/settings — все настройки\n/notifications — включение, пауза\n/today /tomorrow — сводка\n/export — выгрузить свои данные\n/delete — удалить профиль и данные\n/cancel — выйти из заполнения формы\n/privacy — что хранит бот\n\nМожно отправить расписание файлом. Для разовой отмены или переноса открой «Расписание» → «Изменить день».",
@@ -236,6 +244,45 @@ class Application:
     async def setup(self, m):
         self.flow(self.uid(m), action="city")
         await m.answer("Напиши город для прогноза погоды. Точный адрес дома не нужен.")
+
+    async def weather_points(self, m, uid=None):
+        uid = self.uid(m) if uid is None else uid
+        p = self.store.profile(uid)
+        rows = []
+        for point in p.places:
+            role = " · дом" if point.id == p.home_place else ""
+            role += " · учёба/работа" if point.id == p.destination_place else ""
+            rows.append(
+                [
+                    (
+                        f"{point.label}{role} · {'✓' if point.latitude is not None else 'нужна точка'}"[:100],
+                        "place:" + point.id,
+                    )
+                ]
+            )
+            rows.append([("Это дом", "placehome:" + point.id), ("Это учёба/работа", "placedest:" + point.id)])
+        if len(p.places) < 12:
+            rows.append([("Добавить район на карте", "place:add")])
+        rows.append([("Погода сейчас", "weather")])
+        await m.answer(
+            "Погода определяется автоматически по отмеченным районам. Вводить градусы не нужно.\n"
+            "Нажми район и отправь точку на карте: скрепка → Геопозиция. Точный адрес не обязателен.\n"
+            + (
+                "Районы пока не добавлены. Начни с кнопки ниже — ИИ и расписание для этого не нужны."
+                if not p.places
+                else "Отметь дом и место учёбы/работы; они могут находиться в разных городах."
+            ),
+            reply_markup=inline(rows),
+        )
+
+    async def weather(self, m, uid=None):
+        uid = self.uid(m) if uid is None else uid
+        p = self.store.profile(uid)
+        await self.say(
+            m,
+            await weather_report(self.providers, p, self.local_now(uid).date()),
+            reply_markup=inline([[("Настроить районы", "cfg:places")]]),
+        )
 
     async def config_menu(self, m):
         self.flow(self.uid(m))
@@ -331,8 +378,10 @@ class Application:
         self.store.save_profile(uid, p)
         self.flow(uid)
         await m.answer(
-            f"Район отмечен: {point.label}. Прогноз будет по этим координатам. Это прогноз погодной модели, а не измерение на конкретной улице."
+            f"Район отмечен: {point.label}. Прогноз будет по этим координатам. Это прогноз погодной модели, а не измерение на конкретной улице.",
+            reply_markup=MENU,
         )
+        await self.weather(m, uid)
 
     async def stage_config(self, m, uid, config):
         _, (summary, details) = prepare(self.store, uid, config)
@@ -554,30 +603,40 @@ class Application:
                     )
                 )
             elif kind == "places":
-                await m.answer(
-                    "Выбери точку, затем прикрепи обычную геопозицию (скрепка → Геопозиция → выбери район на карте). Можно отметить центр района вместо своего адреса."
-                    if p.places
-                    else "Точки ещё не заданы. Получи промпт первичной настройки и укажи города и районы.",
-                    reply_markup=inline(
-                        [
-                            [
-                                (
-                                    f"{x.label} · {'✓' if x.latitude is not None else 'нужна точка'}",
-                                    "place:" + x.id,
-                                )
-                            ]
-                            for x in p.places
-                        ]
-                    )
-                    if p.places
-                    else MENU,
-                )
+                await self.weather_points(m, uid)
+        elif value == "weather":
+            await self.weather(m, uid)
+        elif value == "place:add":
+            if len(p.places) >= 12:
+                raise ValueError("Можно добавить до 12 районов.")
+            self.flow(uid, action="place_name")
+            await m.answer("Как назвать район? Например: Дом, район станции или Работа, центр города.")
+        elif value.startswith(("placehome:", "placedest:")):
+            role, point_id = value.split(":", 1)
+            if not any(point.id == point_id for point in p.places):
+                raise ValueError("Точка уже удалена. Открой список районов заново.")
+            if role == "placehome":
+                p.home_place = point_id
+            else:
+                p.destination_place = point_id
+            self.store.save_profile(uid, p)
+            await self.weather_points(m, uid)
         elif value.startswith("place:"):
             point = next((x for x in p.places if x.id == value.split(":")[1]), None)
             if point is None:
                 raise ValueError("Точка не найдена")
             self.flow(uid, action="place_location", place_id=point.id)
-            await m.answer(f"Прикрепи точку района для «{point.label}». Трансляция геопозиции не нужна.")
+            await m.answer(
+                f"Прикрепи точку района для «{point.label}»: скрепка → Геопозиция → выбери район на карте.\n"
+                "Если сейчас находишься в этом районе, можно нажать кнопку ниже. Трансляция геопозиции не нужна.",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [KeyboardButton(text="Отправить мою геопозицию", request_location=True)],
+                        [KeyboardButton(text="/cancel")],
+                    ],
+                    resize_keyboard=True,
+                ),
+            )
         elif value.startswith(("cfgapply:", "cfgdiscard:")):
             action, nonce = value.split(":")
             draft = self.store.get_draft(uid, nonce)
@@ -893,6 +952,8 @@ class Application:
             return
         navigation = {
             "Настроить через ИИ": self.config_menu,
+            "Погода": self.weather,
+            "Точки погоды": self.weather_points,
             "Сон": self.sleep_menu,
             "Я дома": self.arrived,
             "Условия": self.conditions,
@@ -916,7 +977,19 @@ class Application:
             return
         p, s = self.store.profile(uid), self.store.session(uid)
         action = s.get("action")
-        if action in ("city", "group"):
+        if action == "place_name":
+            if len(p.places) >= 12 or not 1 <= len(text) <= 100:
+                raise ValueError("Название района: от 1 до 100 символов. Всего можно до 12 районов.")
+            point = Place(id="p" + secrets.token_hex(4), label=text)
+            p.places.append(point)
+            if not p.home_place:
+                p.home_place = point.id
+            if not p.destination_place:
+                p.destination_place = point.id
+            self.store.save_profile(uid, p)
+            self.flow(uid, action="place_location", place_id=point.id)
+            await m.answer("Теперь прикрепи точку этого района: скрепка → Геопозиция → выбери на карте.")
+        elif action in ("city", "group"):
             choices = await (self.providers.cities(text) if action == "city" else self.providers.groups(text))
             if not choices:
                 await m.answer("Совпадений не нашёл. Уточни название.")
@@ -987,9 +1060,9 @@ class Application:
                 if any(g.name == text for g in p.garments):
                     raise ValueError("Вещь с таким названием уже есть")
                 values["name"] = text
-                prompt = "При какой температуре комфортно в этой вещи? Напиши нижнюю и верхнюю границу через пробел, например: 5 15."
+                prompt = "При какой температуре на улице комфортно в этой вещи? Укажи диапазон в °C: два числа через пробел, например -5 15. Это свойства вещи, а не ввод текущей погоды — прогноз бот получает сам."
             elif step == 1:
-                values["minimum"], values["maximum"] = map(float, text.replace(",", ".").split())
+                values["minimum"], values["maximum"] = temperature_range(text)
                 Garment.model_validate(values)
                 prompt = "Защищает от дождя? Напиши да или нет."
             elif step in (2, 3):
@@ -1019,8 +1092,10 @@ class Application:
             if step == 0:
                 values["name"] = text
             elif step == 1:
-                values["minimum"], values["maximum"] = map(float, text.replace(",", ".").split())
+                values["minimum"], values["maximum"] = temperature_range(text)
             elif step == 2:
+                if text.lower() not in ("дождь", "сухо", "любые"):
+                    raise ValueError("Выбери осадки: дождь, сухо или любые.")
                 values["rain"] = {"дождь": "yes", "сухо": "no", "любые": "any"}[text.lower()]
             elif step == 3:
                 values["wind_min"] = float(text.replace(",", "."))

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "cloudflare" / "src"))
 workers = ModuleType("workers")
-workers.Blob = workers.FormData = object
+workers.Blob = workers.FormData = workers.Request = object
 workers.fetch = AsyncMock()
 workers.DurableObject = workers.WorkerEntrypoint = object
 
@@ -92,6 +92,57 @@ async def main():
     assert not store.exists(2)
     print("Cloud Telegram flow passed: commands, private access, keyboards, callback, file outbox")
 
+    # Exercise the actual upload serialization, not a stubbed Telegram method.
+    from email import policy
+    from email.parser import BytesParser
+
+    from companion.telegram import CallbackQuery
+
+    acknowledgement = CallbackQuery(bot=bot, id="ack", **{"from": user}, message=message)
+    await acknowledgement.answer()
+    assert "text" not in cloud_io.telegram.call_args.args[2], (
+        "Empty callback acknowledgements must omit text, not send JSON null"
+    )
+    captured = []
+
+    class UploadRequest:
+        def __init__(self, url, **kwargs):
+            self.url, self.kwargs = url, kwargs
+            captured.append(self)
+
+    cloud_io.Request = UploadRequest
+    cloud_io.fetch = AsyncMock(
+        return_value=SimpleNamespace(
+            status=400,
+            text=AsyncMock(return_value='{"ok":false,"description":"Bad Request: chat not found"}'),
+        )
+    )
+    content = "Synthetic unicode file: Привет".encode()
+    import base64
+
+    status, raw = await cloud_io._telegram(
+        "fake-token",
+        "sendDocument",
+        {"chat_id": 0, "document": "attach://document"},
+        {"document": {"name": "prompt.txt", "data": base64.b64encode(content).decode()}},
+    )
+    assert status == 400 and "chat not found" in raw
+    request = captured[-1]
+    assert isinstance(request.kwargs["body"], bytes), "Uploads must use a complete, known-length body"
+    headers = (
+        "Content-Type: " + request.kwargs["headers"]["Content-Type"] + "\r\nMIME-Version: 1.0\r\n\r\n"
+    ).encode()
+    multipart = BytesParser(policy=policy.default).parsebytes(headers + request.kwargs["body"])
+    parts = list(multipart.iter_parts())
+    assert len(parts) == 2
+    file = next(part for part in parts if part.get_filename())
+    assert file.get_filename() == "prompt.txt" and file.get_payload(decode=True) == content
+    assert (
+        len([part for part in parts if part.get_param("name", header="content-disposition") == "document"])
+        == 1
+    )
+    print("Real multipart file bytes and callback acknowledgements verified")
+
     # Exercise the real webhook and alarm paths, not just the dispatcher.
     from entry import Companion
 
@@ -167,6 +218,90 @@ async def main():
     assert service.store.db.execute("SELECT COUNT(*) FROM cloud_outbox").fetchone()[0] == 0
     print(
         "Cloud webhook speed, in-flight deduplication, per-user delivery and durable timeout retry verified"
+    )
+
+    # A separate, brand-new user exercises the deployed adapter's whole setup
+    # flow. An already configured user's profile must remain unchanged.
+    from datetime import timedelta
+
+    from companion.domain import WeatherHour
+
+    existing = service.store.profile(1)
+    existing.city, existing.travel = "Existing test city", 99
+    service.store.save_profile(1, existing)
+    preserved = service.store.export(1)
+    deliveries = []
+
+    async def collect(token, method, payload, files=None):
+        deliveries.append((method, payload, files))
+        return 200, '{"ok":true,"result":true}'
+
+    async def weather(p, windows):
+        hour = windows[0][0].replace(minute=0, second=0, microsecond=0)
+        return [
+            WeatherHour(
+                at=hour + timedelta(hours=i),
+                temperature=7,
+                feels=5,
+                rain_probability=20,
+                precipitation=0,
+                wind=10,
+            )
+            for i in range(3)
+        ]
+
+    cloud_io.telegram = collect
+    service.providers.weather = weather
+    counter = 100
+
+    async def onboarding(text=None, callback=None, location=None):
+        nonlocal counter
+        counter += 1
+        person = {"id": 8, "is_bot": False, "first_name": "New test user"}
+        msg = {"message_id": counter, "from": person, "chat": {"id": 8, "type": "private"}}
+        if callback:
+            msg["from"] = {"id": 999, "is_bot": True}
+            event = {"callback_query": {"id": str(counter), "from": person, "message": msg, "data": callback}}
+        else:
+            event = {"message": {**msg, "text": text, **({"location": location} if location else {})}}
+        request = Request(counter, uid=8)
+        request.payload = {"update_id": counter, **event}
+        response = await service.fetch(request)
+        assert response.status == 200
+        assert (
+            service.store.db.execute("SELECT status FROM cloud_updates WHERE id=?", (counter,)).fetchone()[0]
+            == "done"
+        )
+
+    await onboarding("/start")
+    await onboarding(callback="cfg:setup")
+    document = next(files["document"] for method, payload, files in deliveries if method == "sendDocument")
+    assert document["name"] == "ai-setup-prompt.txt"
+    assert "Existing test city" not in base64.b64decode(document["data"]).decode()
+    assert all("text" not in payload for method, payload, _ in deliveries if method == "answerCallbackQuery")
+    await onboarding("Погода")
+    assert "Погода ещё не настроена" in deliveries[-1][1]["text"]
+    await onboarding(callback="cfg:places")
+    await onboarding(callback="place:add")
+    await onboarding("New test district")
+    await onboarding(location={"latitude": 55.7, "longitude": 37.6})
+    assert service.store.profile(8).places[0].latitude == 55.7
+    assert "+7.0 °C" in deliveries[-1][1]["text"]
+    assert not service.store.lessons(8)
+    await onboarding(callback="garment:add")
+    await onboarding("Куртка")
+    for invalid in ("67", "50 67", "3 67"):
+        await onboarding(invalid)
+        assert service.store.session(8)["step"] == 1
+        assert "Проверь ввод" in deliveries[-1][1]["text"]
+        assert "input_value" not in deliveries[-1][1]["text"]
+    for value in ("5 10", "да", "нет"):
+        await onboarding(value)
+    assert service.store.profile(8).garments[0].waterproof
+    assert service.store.export(1) == preserved
+    assert all(payload.get("chat_id", 8) == 8 for _, payload, _ in deliveries)
+    print(
+        "Separate new cloud user: prompt file, weather without schedule, wardrobe recovery and existing-profile isolation verified"
     )
 
 

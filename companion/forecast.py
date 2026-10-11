@@ -35,6 +35,7 @@ async def route_weather(providers, p, items):
     )
     forecasts = {}
     missing = []
+    unset = []
     begin = min(s["start"] for s in segments) if segments else times["departure"]
     end = max(s["end"] for s in segments) if segments else times["home_estimate"]
 
@@ -54,7 +55,11 @@ async def route_weather(providers, p, items):
         if hours:
             forecasts[key] = hours
         else:
-            missing.append(points[key].label if key in points else "точка маршрута")
+            label = points[key].label if key in points else "точка маршрута"
+            if key not in points or points[key].latitude is None:
+                unset.append(label)
+            else:
+                missing.append(label)
     lines = ["Погода по маршруту:"]
     for label, key, at in [
         ("Выезд", p.home_place or p.destination_place, times["departure"]),
@@ -91,12 +96,23 @@ async def route_weather(providers, p, items):
                 f"Во время занятий {start:%H:%M}–{stop:%H:%M} · {points[key].label}: {min(values):+.1f}…{max(values):+.1f}°."
             )
     hourly, complete = hourly_exposure(segments, forecasts)
-    if missing or not complete:
-        lines.append(
-            "Для полного выбора одежды не хватает прогноза/координат: "
-            + ", ".join(missing or ["часть часов"])
-            + ". Отметь районы через /config → «Точки погоды»; центр города автоматически не подставляется."
-        )
+    if missing or unset or not complete:
+        if unset:
+            lines.append(
+                "Для выбора одежды не хватает координат районов: "
+                + ", ".join(unset)
+                + ". Открой «Точки погоды» и отметь их на карте один раз. Затем температура определяется автоматически; центр города не подставляется вместо района."
+            )
+        if missing:
+            lines.append(
+                "Прогноз временно недоступен: "
+                + ", ".join(missing)
+                + ". Точки сохранены, повторно отмечать их не нужно. Попробуй позже."
+            )
+        if not unset and not missing:
+            lines.append(
+                "Не хватает прогноза для части часов поездки. Полный совет по одежде пока недоступен."
+            )
     elif hourly:
         lines.append(
             "На улице по часам (среднее по минутам, "

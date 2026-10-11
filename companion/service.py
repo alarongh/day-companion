@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
 
-from .domain import choose_clothing, departure, occurrences, weather_windows
-from .forecast import route_weather
+from .domain import Place, choose_clothing, departure, occurrences, weather_windows
+from .forecast import route_weather, temperature_at
 from .journey import journey_times, sleep_times
 
 
@@ -37,12 +38,52 @@ def agenda(items, show_id=False):
     return "\n".join(lines)
 
 
+async def weather_report(providers, p, day):
+    """Forecast independently of schedules, including first-time onboarding."""
+    now = datetime.now(ZoneInfo(p.timezone))
+    moment = (
+        now
+        if day == now.date()
+        else datetime.combine(day, datetime.min.time(), ZoneInfo(p.timezone)) + timedelta(hours=9)
+    )
+    points = p.places
+    if not points and p.latitude is not None and p.longitude is not None:
+        points = [
+            Place(id="city", label=p.city or "Выбранный город", latitude=p.latitude, longitude=p.longitude)
+        ]
+    if not points:
+        return "Погода ещё не настроена. Открой «Точки погоды», добавь район и отметь его на карте. После этого температуру бот получает автоматически — расписание и ИИ для просмотра погоды не нужны."
+
+    async def one(point):
+        if point.latitude is None:
+            return f"{point.label}: район не отмечен на карте. Открой «Точки погоды» и выбери этот район."
+        copy = p.model_copy(update={"latitude": point.latitude, "longitude": point.longitude})
+        try:
+            hours = await providers.weather(copy, [(moment, moment + timedelta(hours=1))])
+            temperature = temperature_at(hours, moment)
+            feels = temperature_at(hours, moment, "feels")
+            if temperature is None or feels is None:
+                return f"{point.label}: прогноз на этот час отсутствует. Попробуй позже."
+            hour = next(h for h in hours if h.at == moment.replace(minute=0, second=0, microsecond=0))
+            return f"{point.label}: {temperature:+.1f} °C, ощущается {feels:+.1f} °C.\nВероятность осадков {hour.rain_probability:g}%, ветер {hour.wind:g} км/ч."
+        except (httpx.HTTPError, ValueError, KeyError):
+            return f"{point.label}: погодный сервис временно недоступен. Точка сохранена, повторно отмечать её не нужно."
+
+    lines = await asyncio.gather(*(one(point) for point in points))
+    return f"Погода · {moment:%d.%m %H:%M} (прогноз):\n\n" + "\n\n".join(lines)
+
+
 async def briefing(store, providers, uid, day):
     p = store.profile(uid)
     items = day_items(store, uid, day)
     if not items:
         suffix = "Сегодня выбран режим «Дома»." if day in p.home_dates else "Занятий нет."
-        return f"{day:%d.%m.%Y}. {suffix}\n" + sleep_report(store, uid, day)
+        return (
+            f"{day:%d.%m.%Y}. {suffix}\n"
+            + sleep_report(store, uid, day)
+            + "\n\n"
+            + await weather_report(providers, p, day)
+        )
     leave = departure(items, p)
     prepare = leave - timedelta(minutes=p.preparation)
     lines = [

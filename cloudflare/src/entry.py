@@ -167,6 +167,21 @@ class Companion(DurableObject):
         async with self.mutex:
             if path == "/_admin/status":
                 return Response.from_json(self.status())
+            if path == "/_admin/diagnostics":
+                missing = sum(
+                    1
+                    for uid in self.store.users()
+                    if (p := self.store.profile(uid)).places
+                    and any(point.latitude is None for point in p.places)
+                )
+                failed = dict(
+                    self.store.db.execute(
+                        "SELECT method,COUNT(*) FROM cloud_outbox WHERE failed=1 GROUP BY method"
+                    ).fetchall()
+                )
+                return Response.from_json(
+                    {"profiles_missing_weather_points": missing, "failed_by_method": failed}
+                )
             if path == "/_admin/digest":
                 import hashlib
 
@@ -218,6 +233,31 @@ class Companion(DurableObject):
                 from companion.journey import journey_times, sleep_times
 
                 data = json.loads(await request.text())
+                if data.get("transport"):
+                    import base64
+
+                    from cloud_io import telegram
+
+                    # chat_id=0 cannot deliver a message. Only synthetic bytes are sent.
+                    if not isinstance(data.get("transport"), bool):
+                        return Response("Invalid probe", status=400)
+                    status, raw = await telegram(
+                        self.bot.token,
+                        "sendDocument",
+                        {"chat_id": 0, "document": "attach://document"},
+                        {
+                            "document": {
+                                "name": "probe.txt",
+                                "data": base64.b64encode(b"Synthetic file probe").decode(),
+                            }
+                        },
+                    )
+                    try:
+                        result = json.loads(raw)
+                        description = result.get("description", "")
+                    except ValueError:
+                        description = "Non-JSON Telegram response"
+                    return Response.from_json({"http": status, "description": description, "bytes": len(raw)})
                 p = Profile.model_validate(data["profile"])
                 day = date.fromisoformat(data["day"])
                 items = occurrences([Lesson.model_validate(x) for x in data["lessons"]], p, day)

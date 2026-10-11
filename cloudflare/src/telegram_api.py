@@ -70,9 +70,10 @@ class CallbackQuery(Object):
 
     async def answer(self, text=None, **kwargs):
         try:
-            return await self.bot.api(
-                "answerCallbackQuery", {"callback_query_id": self.id, "text": text, **kwargs}
-            )
+            payload = {"callback_query_id": self.id, **kwargs}
+            if text is not None:
+                payload["text"] = text
+            return await self.bot.api("answerCallbackQuery", payload)
         except Exception:
             # Acknowledgements expire quickly; durable replies still reach the chat.
             return False

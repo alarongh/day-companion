@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 from aiogram import Bot, Dispatcher
@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery, Chat, Location, Message, Update, User
 
 from companion.app import Application, PrivateAccess, item_key
 from companion.configuration import snapshot
-from companion.domain import Garment
+from companion.domain import Garment, WeatherHour
 from companion.store import Store
 
 
@@ -195,3 +195,86 @@ async def test_group_messages_do_not_create_user(tmp_path):
     await guard(handler, m, {})
     handler.assert_not_awaited()
     assert not store.exists(1)
+
+
+async def test_new_user_weather_without_schedule_and_temperature_recovery(tmp_path):
+    store = Store(tmp_path / "bot.sqlite3")
+    providers = AsyncMock()
+
+    async def forecast(p, windows):
+        hour = windows[0][0].replace(minute=0, second=0, microsecond=0)
+        return [
+            WeatherHour(
+                at=hour + timedelta(hours=i),
+                temperature=7,
+                feels=5,
+                rain_probability=20,
+                precipitation=0,
+                wind=10,
+            )
+            for i in range(3)
+        ]
+
+    providers.weather.side_effect = forecast
+    locks = defaultdict(asyncio.Lock)
+    app = Application(store, providers, locks)
+    guard = PrivateAccess(set(), store, locks)
+    app.router.message.outer_middleware(guard)
+    app.router.callback_query.outer_middleware(guard)
+    dp = Dispatcher()
+    dp.include_router(app.router)
+    session = TelegramStub()
+    bot = Bot(("123456:" + "A" * 35), session=session)
+    counter = 0
+
+    async def feed(text=None, callback=None, location=None):
+        nonlocal counter
+        counter += 1
+        m = message(1, text or "")
+        if callback:
+            update = Update(
+                update_id=counter,
+                callback_query=CallbackQuery(
+                    id=str(counter),
+                    from_user=m.from_user,
+                    chat_instance="test",
+                    message=m.model_copy(update={"from_user": User(id=999, is_bot=True, first_name="Bot")}),
+                    data=callback,
+                ),
+            )
+        else:
+            update = Update(
+                update_id=counter, message=m.model_copy(update={"location": location, "text": text})
+            )
+        await dp.feed_update(bot, update)
+
+    try:
+        await feed("/start")
+        await feed("Погода")
+        assert "Погода ещё не настроена" in session.calls[-1].text
+        await feed(callback="cfg:places")
+        assert "ИИ и расписание" in session.calls[-1].text
+        await feed(callback="place:add")
+        await feed("Дом, район")
+        point = store.profile(1).places[0]
+        assert point.latitude is None
+        await feed(location=Location(latitude=55.7, longitude=37.6))
+        assert store.profile(1).places[0].latitude == 55.7
+        assert not store.lessons(1)
+        assert "+7.0 °C" in session.calls[-1].text
+        assert all(getattr(call, "chat_id", 1) == 1 for call in session.calls)
+        await feed("Сегодня")
+        assert "Занятий нет" in session.calls[-1].text and "+7.0 °C" in session.calls[-1].text
+        await feed(callback="garment:add")
+        await feed("Куртка")
+        for wrong in ("67", "50 67", "3 67", "15 5"):
+            await feed(wrong)
+            assert store.session(1)["step"] == 1 and not store.profile(1).garments
+            assert "Проверь ввод" in session.calls[-1].text
+            assert "unpack" not in session.calls[-1].text and "input_value" not in session.calls[-1].text
+        for value in ("5 10", "да", "нет"):
+            await feed(value)
+        assert store.profile(1).garments[0].name == "Куртка"
+        assert store.profile(1).garments[0].waterproof
+    finally:
+        await bot.session.close()
